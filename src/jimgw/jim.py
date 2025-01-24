@@ -24,6 +24,7 @@ default_hyperparameters = {
         "n_walkers_maximize_likelihood": 100,
         "n_loops_maximize_likelihood": 2000,
         "which_local_sampler": "MALA",
+        "temperature_scheduler": lambda x: 1.0,
 }
 
 

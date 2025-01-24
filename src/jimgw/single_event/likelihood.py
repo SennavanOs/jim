@@ -485,12 +485,12 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
         
         # ### Epsilon method to compare against relative binning in bilby
         
-        # print("Comparing against relative binning in bilby")
-        # epsilon = 0.05
-        # phase_diff_array = self.max_phase_diff(freqs, freqs[0], freqs[-1], chi=chi)
-        # phase_diff_from_start = phase_diff_array - phase_diff_array[0]
-        # expected_n_bins = int(phase_diff_from_start[-1] / epsilon)
-        # print(f"Using {expected_n_bins} bins for relative binning for epsilon {epsilon}")
+        print("Comparing against relative binning in bilby")
+        epsilon = 0.01
+        phase_diff_array = self.max_phase_diff(freqs, freqs[0], freqs[-1], chi=chi)
+        phase_diff_from_start = phase_diff_array - phase_diff_array[0]
+        expected_n_bins = int(phase_diff_from_start[-1] / epsilon)
+        print(f"Using {expected_n_bins} bins for relative binning for epsilon {epsilon}")
 
         phase_diff_array = self.max_phase_diff(freqs, freqs[0], freqs[-1], chi=chi)
         bin_f = interp1d(phase_diff_array, freqs)
