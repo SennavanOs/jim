@@ -24,7 +24,7 @@ default_hyperparameters = {
         "n_walkers_maximize_likelihood": 100,
         "n_loops_maximize_likelihood": 2000,
         "which_local_sampler": "MALA",
-        "temperature_scheduler": lambda x: 1.0,
+        "temperature_scheduler": lambda _: 1.0,
 }
 
 
@@ -58,6 +58,8 @@ class Jim(object):
         
         for key, value in self.hyperparameters.items():
             setattr(self, key, value)
+            
+        assert hasattr(self, "temperature_scheduler"), "temperature_scheduler not set" # TODO: delete me if set is OK
 
         rng_key_set = initialize_rng_keys(self.hyperparameters["n_chains"], seed=self.hyperparameters["seed"])
         local_sampler_arg = kwargs.get("local_sampler_arg", {})
@@ -93,14 +95,19 @@ class Jim(object):
     def posterior(self, params: Float[Array, " n_dim"], data: dict):
         prior_params = self.Prior.add_name(params.T)
         prior = self.Prior.log_prob(prior_params)
+        temp = self.temperature_scheduler(data["iteration"])
+        temp = temp * jnp.heaviside(self.Sampler.n_loop_training+1 - data["iteration"], 0.5) + \
+            1 * jnp.heaviside(data["iteration"] - self.Sampler.n_loop_training+1, 0.5)
+
         likelihood_val = self.Likelihood.evaluate(self.Prior.transform(prior_params), data)
-        return likelihood_val + prior
+        posterior_value = 1 / temp * (likelihood_val + prior)
+        return posterior_value
 
     def sample(self, key: PRNGKeyArray, initial_guess: Array = jnp.array([])):
         if initial_guess.size == 0:
             initial_guess_named = self.Prior.sample(key, self.Sampler.n_chains)
             initial_guess = jnp.stack([i for i in initial_guess_named.values()]).T
-        self.Sampler.sample(initial_guess, None)  # type: ignore
+        self.Sampler.sample(initial_guess, {})  # type: ignore
 
     def maximize_likelihood(
         self,
