@@ -95,12 +95,13 @@ class Jim(object):
     def posterior(self, params: Float[Array, " n_dim"], data: dict):
         prior_params = self.Prior.add_name(params.T)
         prior = self.Prior.log_prob(prior_params)
+        likelihood_val = self.Likelihood.evaluate(self.Prior.transform(prior_params), data)
+        
+        # Apply tempering, and if a max log prob is given, subtract it, so that the maximum log prob becomes 0
         temp = self.temperature_scheduler(data["iteration"])
         temp = temp * jnp.heaviside(self.Sampler.n_loop_training+1 - data["iteration"], 0.5) + \
             1 * jnp.heaviside(data["iteration"] - self.Sampler.n_loop_training+1, 0.5)
-
-        likelihood_val = self.Likelihood.evaluate(self.Prior.transform(prior_params), data)
-        posterior_value = 1 / temp * (likelihood_val + prior)
+        posterior_value = 1 / temp * (likelihood_val + prior - self.max_log_prob)
         return posterior_value
 
     def sample(self, key: PRNGKeyArray, initial_guess: Array = jnp.array([])):
