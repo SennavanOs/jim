@@ -48,7 +48,6 @@ class RippleIMRPhenomD(Waveform):
     def __repr__(self):
         return f"RippleIMRPhenomD(f_ref={self.f_ref})"
 
-
 class RippleIMRPhenomPv2(Waveform):
     f_ref: float
 
@@ -194,10 +193,31 @@ class RippleIMRPhenomD_NRTidalv2(Waveform):
     def __repr__(self):
         return f"RippleIMRPhenomD_NRTidalv2(f_ref={self.f_ref})"
 
+class RippleSineGaussian(Waveform):
+    def __call__(
+        self, time: Float[Array, " n_dim"], params: dict[str, Float]
+    ) -> dict[str, Float[Array, " n_dim"]]:
+        output = {}
+        theta = jnp.array(
+            [
+                params["t_0"],
+                params["f_0"],
+                params["Q"],
+                params["A"],
+                params["phi_0"],
+            ]
+        )
+        output["h_0"] = get_sineGaussian(time, theta)
+        return output
+
+    def __repr__(self):
+        return f"RippleSineGaussian()"
+
 
 waveform_preset = {
     "RippleIMRPhenomD": RippleIMRPhenomD,
     "RippleIMRPhenomPv2": RippleIMRPhenomPv2,
     "RippleTaylorF2": RippleTaylorF2,
     "RippleIMRPhenomD_NRTidalv2": RippleIMRPhenomD_NRTidalv2,
+    "RippleSineGaussian": RippleSineGaussian,
 }
