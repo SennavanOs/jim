@@ -366,6 +366,68 @@ class GroundBased2G(Detector):
 
         return antenna_patterns
 
+    def inject_glitch(
+        self,
+        key: PRNGKeyArray,
+        times: Float[Array, " n_sample"],
+        h: dict[str, Float[Array, " n_sample"]],
+        params: dict[str, Float],
+        psd_file: str = "",
+    ) -> None:
+        """
+        Inject a glitch into the detector data (in time domain).
+        
+        Parameters
+        ----------
+        key : PRNGKeyArray
+            JAX PRNG key.
+        times : Float[Array, " n_sample"]
+            Array of times.
+        h : dict[str, Float[Array, " n_sample"]]
+            Array of glitch strain data to be injected.
+        params : dict[str, Float]
+            Dictionary of detector parameters.
+        psd_file : str
+            Path to the PSD file.
+
+        Returns
+        -------
+        None
+        
+        """
+        freqs = jnp.fft.rfftfreq(len(times), d=(times[1] - times[0]))  # Frequency bins
+        self.frequencies = freqs
+        self.psd = self.load_psd(freqs, psd_file)
+        key, subkey = jax.random.split(key, 2)
+        var = self.psd / (4 * (freqs[1] - freqs[0]))
+        
+        # Generate noise in frequency domain`
+        noise_real = jax.random.normal(key, shape=freqs.shape) * jnp.sqrt(var / 2.0)
+        noise_imag = jax.random.normal(subkey, shape=freqs.shape) * jnp.sqrt(var / 2.0)
+        noise_fd = noise_real + 1j * noise_imag
+
+        # Convert noise to time domain
+        noise_td = jnp.fft.ifft(noise_fd, n=len(times))
+    
+        # Phase shift for time alignment. Is this necessary?
+        align_time = jnp.exp(
+                    -1j * 2 * jnp.pi * freqs * (params["epoch"] + params["t_0"])
+        )
+        h_fd = jnp.fft.fft(h) * align_time
+        h_td = jnp.fft.ifft(h_fd, n=len(times))
+    
+        # Inject glitch
+        self.data = h_td + noise_td
+
+        # also calculate the optimal SNR and match filter SNR
+        optimal_SNR = jnp.sqrt(jnp.sum(h_fd * h_fd.conj() / var).real)
+        match_filter_SNR = jnp.sum(jnp.fft.fft(self.data) * h_fd.conj() / var) / optimal_SNR
+
+        print(f"For detector {self.name}:")
+        print(f"The injected optimal SNR is {optimal_SNR}")
+        print(f"The injected match filter SNR is {match_filter_SNR}")
+
+
     def inject_signal(
         self,
         key: PRNGKeyArray,
@@ -386,7 +448,7 @@ class GroundBased2G(Detector):
         h_sky : dict[str, Float[Array, " n_sample"]]
             Array of waveforms in the sky frame. The key is the polarization mode.
         params : dict[str, Float]
-            Dictionary of parameters.
+            Dictionary of detector parameters.
         psd_file : str
             Path to the PSD file.
 
@@ -403,7 +465,7 @@ class GroundBased2G(Detector):
         align_time = jnp.exp(
             -1j * 2 * jnp.pi * freqs * (params["epoch"] + params["t_c"])
         )
-
+    
         signal = self.fd_response(freqs, h_sky, params) * align_time
         self.data = signal + noise_real + 1j * noise_imag
 

@@ -193,7 +193,7 @@ class RippleIMRPhenomD_NRTidalv2(Waveform):
     def __repr__(self):
         return f"RippleIMRPhenomD_NRTidalv2(f_ref={self.f_ref})"
 
-class RippleSineGaussian(Waveform):
+class RippleSineGaussian_td(Waveform):
     def __call__(
         self, time: Float[Array, " n_dim"], params: dict[str, Float]
     ) -> dict[str, Float[Array, " n_dim"]]:
@@ -207,11 +207,31 @@ class RippleSineGaussian(Waveform):
                 params["phi_0"],
             ]
         )
-        output["h_0"] = get_sineGaussian(time, theta)
+        output["h_0"] = td_sineGaussian(time, theta)
         return output
 
     def __repr__(self):
-        return f"RippleSineGaussian()"
+        return f"RippleSineGaussian_td()"
+    
+class RippleSineGaussian_fd(Waveform):
+    def __call__(
+        self, frequency: Float[Array, " n_dim"], params: dict[str, Float]
+    ) -> dict[str, Float[Array, " n_dim"]]:
+        output = {}
+        theta = jnp.array(
+            [
+                params["t_0"],
+                params["f_0"],
+                params["Q"],
+                params["A"],
+                params["phi_0"],
+            ]
+        )
+        output["h_0"] = fd_sineGaussian(frequency, theta)
+        return output
+
+    def __repr__(self):
+        return f"RippleSineGaussian_fd()"
 
 
 waveform_preset = {
@@ -219,5 +239,6 @@ waveform_preset = {
     "RippleIMRPhenomPv2": RippleIMRPhenomPv2,
     "RippleTaylorF2": RippleTaylorF2,
     "RippleIMRPhenomD_NRTidalv2": RippleIMRPhenomD_NRTidalv2,
-    "RippleSineGaussian": RippleSineGaussian,
+    "RippleSineGaussian_td": RippleSineGaussian_td,
+    "RippleSineGaussian_fd": RippleSineGaussian_fd,
 }
