@@ -330,7 +330,7 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
                 * align_time_center
             )
             start = time.time()
-            A0, A1, B0, B1 = self.old_compute_coefficients(
+            A0, A1, B0, B1 = self.compute_coefficients(
                 detector.data,
                 waveform_ref,
                 detector.psd,
@@ -501,42 +501,7 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
         return jnp.array(f_bins), jnp.array(f_bins_center)
 
     @staticmethod
-    def compute_coefficients(data, h_ref, psd, freqs, f_index_array, f_bins_center):
-
-        df = float(freqs[1] - freqs[0])
-        data_prod = np.array(data * h_ref.conj())
-        self_prod = np.array(h_ref * h_ref.conj())
-        
-        data_prod_div_psd = data_prod / psd
-        self_prod_div_psd = self_prod / psd
-        
-        A0_array = np.empty(len(f_index_array), dtype=complex)
-        A1_array = np.empty(len(f_index_array), dtype=complex)
-        B0_array = np.empty(len(f_index_array), dtype=complex)
-        B1_array = np.empty(len(f_index_array), dtype=complex)
-        
-        for i in range(len(f_index_array)):
-            f_index = f_index_array[i]
-            f_bin_center = f_bins_center[i]
-            
-            # Mask the frequencies
-            freqs_difference = freqs[f_index] - f_bin_center
-            
-            # Mask the data and self products
-            _data_prod_div_psd = data_prod_div_psd[f_index]
-            _self_prod_div_psd = self_prod_div_psd[f_index]
-            
-            # Sum
-            value = 4 * np.sum(_data_prod_div_psd) * df
-            A0_array[i] = value
-            A1_array[i] = 4 * np.sum(_data_prod_div_psd * freqs_difference) * df
-            B0_array[i] = 4 * np.sum(_self_prod_div_psd) * df
-            B1_array[i] = 4 * np.sum(_self_prod_div_psd * freqs_difference) * df
-            
-        return A0_array, A1_array, B0_array, B1_array
-
-    @staticmethod
-    def old_compute_coefficients(data, h_ref, psd, freqs, f_bins, f_bins_center):
+    def compute_coefficients(data, h_ref, psd, freqs, f_bins, f_bins_center):
         A0_array = []
         A1_array = []
         B0_array = []

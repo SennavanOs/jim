@@ -99,9 +99,7 @@ class Jim(object):
         
         # Apply tempering, and if a max log prob is given, subtract it, so that the maximum log prob becomes 0
         temp = self.temperature_scheduler(data["iteration"])
-        temp = temp * jnp.heaviside(self.Sampler.n_loop_training+1 - data["iteration"], 0.5) + \
-            1 * jnp.heaviside(data["iteration"] - self.Sampler.n_loop_training+1, 0.5)
-        posterior_value = 1 / temp * (likelihood_val + prior - self.max_log_prob)
+        posterior_value = 1 / temp * (likelihood_val) + prior - self.max_log_prob
         return posterior_value
 
     def sample(self, key: PRNGKeyArray, initial_guess: Array = jnp.array([])):
@@ -145,14 +143,17 @@ class Jim(object):
         train_summary = self.Sampler.get_sampler_state(training=True)
         production_summary = self.Sampler.get_sampler_state(training=False)
 
-        training_chain = train_summary["chains"].reshape(-1, self.Prior.n_dim).T
-        training_chain = self.Prior.add_name(training_chain)
-        if transform:
-            training_chain = self.Prior.transform(training_chain)
-        training_log_prob = train_summary["log_prob"]
-        training_local_acceptance = train_summary["local_accs"]
-        training_global_acceptance = train_summary["global_accs"]
-        training_loss = train_summary["loss_vals"]
+        # Training summary is empty if Sampler's use_global is False
+        use_global = self.Sampler.use_global
+        if use_global:
+            training_chain = train_summary["chains"].reshape(-1, self.Prior.n_dim).T
+            training_chain = self.Prior.add_name(training_chain)
+            if transform:
+                training_chain = self.Prior.transform(training_chain)
+            training_log_prob = train_summary["log_prob"]
+            training_local_acceptance = train_summary["local_accs"]
+            training_global_acceptance = train_summary["global_accs"]
+            training_loss = train_summary["loss_vals"]
 
         production_chain = production_summary["chains"].reshape(-1, self.Prior.n_dim).T
         production_chain = self.Prior.add_name(production_chain)

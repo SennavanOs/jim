@@ -17,7 +17,8 @@ class DoubleTransientLikelihoodFD(SingleEventLiklihood):
     def __init__(
         self,
         detectors: list[Detector],
-        waveform: Waveform,
+        waveform_1: Waveform,
+        waveform_2: Waveform,
         trigger_time: float = 0,
         duration: float = 4,
         post_trigger_duration: float = 2,
@@ -33,11 +34,12 @@ class DoubleTransientLikelihoodFD(SingleEventLiklihood):
             )
         ), "The detectors must have the same frequency grid"
         self.frequencies = self.detectors[0].frequencies  # type: ignore
-        self.waveform = waveform
+        self.waveform_1 = waveform_1
+        self.waveform_2 = waveform_2
         self.trigger_time = trigger_time
         self.required_keys = []
-        self.required_keys += [f"{k}_1" for k in waveform.required_keys]
-        self.required_keys += [f"{k}_2" for k in waveform.required_keys]
+        self.required_keys += [f"{k}_1" for k in waveform_1.required_keys]
+        self.required_keys += [f"{k}_2" for k in waveform_2.required_keys]
         self.required_keys += ["t_c_1", "psi_1", "ra_1", "dec_1"]
         self.required_keys += ["t_c_2", "psi_2", "ra_2", "dec_2"]
         
@@ -161,8 +163,8 @@ class DoubleTransientLikelihoodFD(SingleEventLiklihood):
         params = self.fixing_func(params)
         params_1, params_2 = self.extract_params(params)
         # evaluate the waveform as usual
-        waveform_sky_1 = self.waveform(frequencies, params_1)
-        waveform_sky_2 = self.waveform(frequencies, params_2)
+        waveform_sky_1 = self.waveform_1(frequencies, params_1)
+        waveform_sky_2 = self.waveform_2(frequencies, params_2)
         align_time_1 = jnp.exp(
             -1j * 2 * jnp.pi * frequencies * (self.epoch + params["t_c_1"])
         )
@@ -215,7 +217,8 @@ class HeterodynedDoubleTransientLikelihoodFD(DoubleTransientLikelihoodFD):
     def __init__(
         self,
         detectors: list[Detector],
-        waveform: Waveform,
+        waveform_1: Waveform,
+        waveform_2: Waveform,
         prior: Prior,
         bounds: Float[Array, " n_dim 2"],
         n_bins: int = 100,
@@ -228,19 +231,24 @@ class HeterodynedDoubleTransientLikelihoodFD(DoubleTransientLikelihoodFD):
         save_binning_scheme: bool = False,
         save_binning_scheme_location: str = "./",
         save_binning_scheme_name: str = "freq_grid",
-        reference_waveform: Waveform = None,
+        reference_waveform_1: Waveform = None,
+        reference_waveform_2: Waveform = None,
         outdir_name: str = "./outdir/",
         **kwargs,
     ) -> None:
 
         super().__init__(
-            detectors, waveform, trigger_time, duration, post_trigger_duration, **kwargs
+            detectors, waveform_1, waveform_2, trigger_time, duration, post_trigger_duration, **kwargs
         )
 
-        if reference_waveform is None:
-            reference_waveform = self.waveform
+        if reference_waveform_1 is None:
+            reference_waveform_1 = self.waveform_1
+        
+        if reference_waveform_2 is None:
+            reference_waveform_2 = self.waveform_2
 
-        self.reference_waveform = reference_waveform
+        self.reference_waveform_1 = reference_waveform_1
+        self.reference_waveform_2 = reference_waveform_2
         self.outdir_name = outdir_name
 
         print("Initializing heterodyned double transient likelihood..")
@@ -288,10 +296,10 @@ class HeterodynedDoubleTransientLikelihoodFD(DoubleTransientLikelihoodFD):
         self.A1_array = {}
         self.B0_array = {}
         self.B1_array = {}
-
+        
         params_1, params_2 = self.extract_params(self.ref_params)
-        h_sky_1 = self.reference_waveform(frequency_original, params_1)
-        h_sky_2 = self.reference_waveform(frequency_original, params_2)
+        h_sky_1 = self.reference_waveform_1(frequency_original, params_1)
+        h_sky_2 = self.reference_waveform_2(frequency_original, params_2)
 
         # Get frequency masks to be applied, for both original
         # and heterodyne frequency grid -- check both WFs
@@ -317,11 +325,11 @@ class HeterodynedDoubleTransientLikelihoodFD(DoubleTransientLikelihoodFD):
         if len(self.freq_grid_low) > len(self.freq_grid_center):
             self.freq_grid_low = self.freq_grid_low[: len(self.freq_grid_center)]
 
-        h_sky_low_1 = self.reference_waveform(self.freq_grid_low, params_1)
-        h_sky_center_1 = self.reference_waveform(self.freq_grid_center, params_1)
+        h_sky_low_1 = self.reference_waveform_1(self.freq_grid_low, params_1)
+        h_sky_center_1 = self.reference_waveform_1(self.freq_grid_center, params_1)
         
-        h_sky_low_2 = self.reference_waveform(self.freq_grid_low, params_2)
-        h_sky_center_2 = self.reference_waveform(self.freq_grid_center, params_2)
+        h_sky_low_2 = self.reference_waveform_2(self.freq_grid_low, params_2)
+        h_sky_center_2 = self.reference_waveform_2(self.freq_grid_center, params_2)
 
         # Get phase shifts to align time of coalescence
         align_time_1 = jnp.exp(
@@ -523,10 +531,10 @@ class HeterodynedDoubleTransientLikelihoodFD(DoubleTransientLikelihoodFD):
         params["gmst"] = self.gmst
         params = self.fixing_func(params)
         params_1, params_2 = self.extract_params(params)
-        waveform_sky_low_1 = self.waveform(frequencies_low, params_1)
-        waveform_sky_center_1 = self.waveform(frequencies_center, params_1)
-        waveform_sky_low_2 = self.waveform(frequencies_low, params_2)
-        waveform_sky_center_2 = self.waveform(frequencies_center, params_2)
+        waveform_sky_low_1 = self.waveform_1(frequencies_low, params_1)
+        waveform_sky_center_1 = self.waveform_1(frequencies_center, params_1)
+        waveform_sky_low_2 = self.waveform_2(frequencies_low, params_2)
+        waveform_sky_center_2 = self.waveform_2(frequencies_center, params_2)
         align_time_low_1 = jnp.exp(
             -1j * 2 * jnp.pi * frequencies_low * (self.epoch + params["t_c_1"])
         )
