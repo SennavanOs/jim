@@ -5,6 +5,7 @@ from ripple.waveforms.TaylorF2 import gen_TaylorF2_hphc
 from ripple.waveforms.TaylorF2QM import gen_TaylorF2_hphc as gen_TaylorF2QM_hphc
 from ripple.waveforms.X_NRTidalv2 import gen_NRTidalv2_hphc
 from ripple.waveforms.X_NRTidalv2_no_taper import gen_NRTidalv2_no_taper_hphc
+from ripple.waveforms.sine_gaussian import td_sineGaussian, fd_sineGaussian, sum_fd_sineGaussian, sum_td_sineGaussian
 from abc import ABC
 import jax.numpy as jnp
 
@@ -170,6 +171,98 @@ class RippleIMRPhenomD_NRTidalv2(Waveform):
         hp, hc = gen_NRTidalv2_hphc(frequency, theta, self.f_ref, use_lambda_tildes=self.use_lambda_tildes)
         output["p"] = hp
         output["c"] = hc
+        return output
+
+class RippleSineGaussian_td(Waveform):
+
+    def __init__(self):
+        self.required_keys = ['t_0', 'f_0', 'Q', 'log10_A', 'phi_0']
+    def __call__(
+        self, time: Float[Array, " n_dim"], params: dict[str, Float]
+    ) -> dict[str, Float[Array, " n_dim"]]:
+        output = {}
+        theta = jnp.array(
+            [
+                params["t_0"],
+                params["f_0"],
+                params["Q"],
+                params["log10_A"],
+                params["phi_0"],
+            ]
+        )
+        output["h_0"] = td_sineGaussian(time, theta)
+        return output
+
+    def __repr__(self):
+        return f"RippleSineGaussian_td()"
+    
+class RippleSineGaussian_fd(Waveform):
+
+    n: int
+
+    def __init__(self, n):
+        self.n = n
+        
+        self.required_keys = ['t_0', 'f_0', 'Q', 'log10_A', 'phi_0']
+    def __call__(
+        self, frequency: Float[Array, " n_dim"], params: dict[str, Float]
+    ) -> dict[str, Float[Array, " n_dim"]]:
+        output = {}
+        theta = jnp.array(
+            [
+                params["t_0"],
+                params["f_0"],
+                params["Q"],
+                params["log10_A"],
+                params["phi_0"],
+            ]
+        )
+        output["h_0"] = fd_sineGaussian(frequency, theta)
+        return output
+
+    def __repr__(self):
+        return f"RippleSineGaussian_fd()"
+
+class RippleSineGaussian_fd_stack(Waveform):
+    n: int
+
+    def __init__(self, n):
+        self.n = n
+        self.required_keys = [f"{param}_{i}" for param in ['t_0', 'f_0', 'Q', 'log10_A', 'phi_0'] for i in range(n+1)]
+    def __call__(
+        self, frequency: Float[Array, " n_dim"], params: dict[str, list]
+    ) -> dict[str, Float[Array, " n_dim"]]:
+        output = {"h_0": 0}
+        for i in range(self.n):
+            theta = jnp.array([
+                                params[f"t_0_{i}"],
+                                params[f"f_0_{i}"],
+                                params[f"Q_{i}"],
+                                params[f"log10_A_{i}"],
+                                params[f"phi_0_{i}"],
+                        ])
+            output["h_0"] += fd_sineGaussian(frequency, theta)
+        return output
+    def __repr__(self):
+        return f"RippleSineGaussian_fd_stack()"
+
+class RippleSineGaussian_td_stack(Waveform):
+    def __init__(self):
+        self.required_keys = ['t_0', 'f_0', 'Q', 'log10_A', 'phi_0']
+    def __call__(
+        self, time: Float[Array, " n_dim"], params: dict[str, list]
+    ) -> dict[str, Float[Array, " n_dim"]]:
+        output = {}
+        theta = jnp.array(
+            [
+                params["t_0"],
+                params["f_0"],
+                params["Q"],
+                params["log10_A"],
+                params["phi_0"],
+            ]
+        )
+        output["h_0"] = sum_td_sineGaussian(time, theta)
         return output
 
 class RippleIMRPhenomD_NRTidalv2_no_taper(Waveform):

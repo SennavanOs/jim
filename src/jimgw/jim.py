@@ -99,7 +99,7 @@ class Jim(object):
         
         # Apply tempering, and if a max log prob is given, subtract it, so that the maximum log prob becomes 0
         temp = self.temperature_scheduler(data["iteration"])
-        posterior_value = 1 / temp * (likelihood_val) + prior - self.max_log_prob
+        posterior_value = 1 / temp * (likelihood_val) + prior
         return posterior_value
 
     def sample(self, key: PRNGKeyArray, initial_guess: Array = jnp.array([])):

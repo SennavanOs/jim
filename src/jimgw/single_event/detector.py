@@ -366,6 +366,107 @@ class GroundBased2G(Detector):
 
         return antenna_patterns
 
+    def inject_glitch_td(
+        self,
+        key: PRNGKeyArray,
+        times: Float[Array, " n_sample"],
+        h_td: dict[str, Float[Array, " n_sample"]],
+        psd_file: str = "",
+    ) -> None:
+        """
+        Inject a glitch into the detector data (in time domain).
+        
+        Parameters
+        ----------
+        key : PRNGKeyArray
+            JAX PRNG key.
+        times : Float[Array, " n_sample"]
+            Array of times.
+        h_td : dict[str, Float[Array, " n_sample"]]
+            Array of glitch strain data as function of time. Key is polarization mode, redundant here as it's only "h_0".
+        psd_file : str
+            Path to the PSD file.
+
+        Returns
+        -------
+        None
+        
+        """
+        h_td = h_td["h_0"]
+        freqs = jnp.fft.rfftfreq(len(times), d=(times[1] - times[0]))  # Frequency bins
+        h_fd = jnp.fft.rfft(h_td)
+        self.frequencies = freqs
+        self.psd = self.load_psd(freqs, psd_file)
+        key, subkey = jax.random.split(key, 2)
+        var = self.psd / (4 * (freqs[1] - freqs[0]))
+        
+        # Generate noise in frequency domain`
+        noise_real = jax.random.normal(key, shape=freqs.shape) * jnp.sqrt(var / 2.0)
+        noise_imag = jax.random.normal(subkey, shape=freqs.shape) * jnp.sqrt(var / 2.0)
+        noise_fd = noise_real + 1j * noise_imag
+
+        # Convert noise to time domain
+        noise_td = jnp.fft.ifft(noise_fd, n=len(times))
+    
+        # Inject glitch
+        self.data = h_td + noise_td
+
+        # also calculate the optimal SNR and match filter SNR
+        optimal_SNR = jnp.sqrt(jnp.sum(h_fd * h_fd.conj() / var).real)
+        match_filter_SNR = jnp.sum(jnp.fft.fft(self.data) * h_fd.conj() / var) / optimal_SNR
+
+        print(f"For detector {self.name}:")
+        print(f"The injected optimal SNR is {optimal_SNR}")
+        print(f"The injected match filter SNR is {match_filter_SNR}")
+
+    def inject_glitch_fd(
+        self,
+        key: PRNGKeyArray,
+        freqs: Float[Array, " n_sample"],
+        h_fd: dict[str, Float[Array, " n_sample"]],
+        psd_file: str = "",
+    ) -> None:
+        """
+        Inject a glitch into the detector data (in time domain).
+        
+        Parameters
+        ----------
+        key : PRNGKeyArray
+            JAX PRNG key.
+        freqs : Float[Array, " n_sample"]
+            Array of frequencies.
+        h_fd : dict[str, Float[Array, " n_sample"]]
+            Array of glitch strain data to be injected. Key is polarization mode, redundant here as it's only "h_0".
+        psd_file : str
+            Path to the PSD file.
+
+        Returns
+        -------
+        None
+        
+        """
+        h_fd = h_fd["h_0"]
+        self.frequencies = freqs
+        self.psd = self.load_psd(freqs, psd_file)
+        key, subkey = jax.random.split(key, 2)
+        var = self.psd / (4 * (freqs[1] - freqs[0]))
+        
+        # Generate noise in frequency domain`
+        noise_real = jax.random.normal(key, shape=freqs.shape) * jnp.sqrt(var / 2.0)
+        noise_imag = jax.random.normal(subkey, shape=freqs.shape) * jnp.sqrt(var / 2.0)
+        noise_fd = noise_real + 1j * noise_imag
+    
+        # Inject glitch
+        self.data = h_fd + noise_fd
+
+        # also calculate the optimal SNR and match filter SNR
+        optimal_SNR = jnp.sqrt(jnp.sum(h_fd * h_fd.conj() / var).real)
+        match_filter_SNR = jnp.sum(jnp.fft.fft(self.data) * h_fd.conj() / var) / optimal_SNR
+
+        print(f"For detector {self.name}:")
+        print(f"The injected optimal SNR is {optimal_SNR}")
+        print(f"The injected match filter SNR is {match_filter_SNR}")
+
     def inject_signal(
         self,
         key: PRNGKeyArray,

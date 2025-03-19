@@ -44,7 +44,7 @@ class TransientLikelihoodFD(SingleEventLiklihood):
         ), "The detectors must have the same frequency grid"
         self.frequencies = self.detectors[0].frequencies  # type: ignore
         self.waveform = waveform
-        self.required_keys = waveform.required_keys + ["t_c", "psi", "ra", "dec"]
+        self.required_keys = waveform.required_keys # changed: + ["t_c", "psi", "ra", "dec"]
         self.trigger_time = trigger_time
         self.gmst = (
             Time(trigger_time, format="gps").sidereal_time("apparent", "greenwich").rad
@@ -96,25 +96,20 @@ class TransientLikelihoodFD(SingleEventLiklihood):
         df = frequencies[1] - frequencies[0]
         # adjust the params due to fixing parameters
         params = self.fixing_func(params)
-        params["gmst"] = self.gmst
-        waveform_sky = self.waveform(frequencies, params)
-        align_time = jnp.exp(
-            -1j * 2 * jnp.pi * frequencies * (self.epoch + params["t_c"])
-        )
+ #       params["gmst"] = self.gmst
+        waveform = self.waveform(frequencies, params)
         for detector in self.detectors:
-            waveform_dec = (
-                detector.fd_response(frequencies, waveform_sky, params) * align_time
-            )
+            waveform_data = waveform["h_0"]
             match_filter_SNR = (
                 4
                 * jnp.sum(
-                    (jnp.conj(waveform_dec) * detector.data) / detector.psd * df
+                    (jnp.conj(waveform_data) * detector.data) / detector.psd * df
                 ).real
             )
             optimal_SNR = (
                 4
                 * jnp.sum(
-                    jnp.conj(waveform_dec) * waveform_dec / detector.psd * df
+                    jnp.conj(waveform_data) * waveform_data / detector.psd * df
                 ).real
             )
             log_likelihood += match_filter_SNR - optimal_SNR / 2
@@ -428,7 +423,7 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
     
     @staticmethod
     def max_phase_diff(
-        f: npt.NDArray[np.float_],
+        f: npt.NDArray[np.float64],
         f_low: float,
         f_high: float,
         chi: Float = 1.0,
@@ -460,7 +455,7 @@ class HeterodynedTransientLikelihoodFD(TransientLikelihoodFD):
         return 2 * np.pi * chi * np.sum((f / f_star) ** gamma * np.sign(gamma), axis=1)
 
     def make_binning_scheme(
-        self, freqs: npt.NDArray[np.float_], n_bins: int, chi: float = 1
+        self, freqs: npt.NDArray[np.float64], n_bins: int, chi: float = 1
     ) -> tuple[Float[Array, " n_bins+1"], Float[Array, " n_bins"]]:
         """
         Make a binning scheme based on the maximum phase difference between the
